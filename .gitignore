@@ -1,0 +1,24 @@
+# .gitignore
+
+# Pastas do Python
+__pycache__/
+*.pyc
+*.pyo
+*.py[cod]
+
+# Environments
+.env
+.venv
+venv/
+env/
+
+# Dados de cache e arquivos temporários
+*.log
+*.tmp
+*.bak
+
+# Jupyter/Notebook
+.ipynb_checkpoints
+
+# VSCode
+.vscode/
