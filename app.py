@@ -136,3 +136,6 @@ def run_algorithm():
             info += f"{algo_type.title()}: Distância {dist_fmt} | {len(path)} passos."
 
     return jsonify({'path': path, 'info': info})
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)

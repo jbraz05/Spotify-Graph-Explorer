@@ -303,7 +303,7 @@
             const allEdges = edgesDataset.getIds();
 
             nodesDataset.update(allNodes.map(id => ({
-                id: id, color: null, opacity: 1, size: 20 // Volta ao padrão do options
+                id: id, color: null, opacity: 1, size: 20
             })));
 
             edgesDataset.update(allEdges.map(id => ({
@@ -315,6 +315,7 @@
         }
 
         window.onload = initGraph;
+    
     </script>
 </body>
 
