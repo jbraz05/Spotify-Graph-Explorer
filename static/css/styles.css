@@ -57,7 +57,6 @@ select:focus {
     border-color: #1DB954;
 }
 
-/* --- Botões --- */
 .btn-group {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -152,4 +151,40 @@ button:active {
     font-size: 12px;
     color: #aaa;
     pointer-events: none;
+}
+
+.search-container {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 15px;
+}
+
+#searchInput {
+    flex-grow: 1;
+    padding: 8px;
+    border-radius: 20px;
+    border: 1px solid #444;
+    background: #222;
+    color: white;
+    outline: none;
+}
+
+#searchInput:focus {
+    border-color: #1DB954;
+}
+
+.btn-search {
+    background: #1DB954;
+    border: none;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
 }

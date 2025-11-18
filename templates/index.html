@@ -1,268 +1,321 @@
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
     <meta charset="UTF-8">
     <title>Spotify Graph Explorer</title>
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-    <link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/1/19/Spotify_logo_without_text.svg" type="image/svg+xml">
+    <link rel="icon" href="https://upload.wikimedia.org/wikipedia/commons/1/19/Spotify_logo_without_text.svg"
+        type="image/svg+xml">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
+
 <body>
 
-<div id="sidebar">
-    <div>
-        <h2>Spotify Graph 🎵</h2>
-        <p class="subtitle">Explorador de Colaborações</p>
+    <div id="sidebar">
+        <div>
+            <h2>Grafo Musicas do Spotify 🎵</h2>
+            <p class="subtitle">Explorador de Colaborações</p>
+        </div>
+
+        <label>🔍 Buscar Artista no Grafo</label>
+        <div class="search-container">
+            <input type="text" id="searchInput" list="artistSuggestions" placeholder="Digite o nome..."
+                onkeypress="handleEnter(event)">
+            <datalist id="artistSuggestions"></datalist>
+            <button class="btn-search" onclick="searchNode()" title="Buscar">➝</button>
+        </div>
+
+        <label>Artista de Origem (Start)</label>
+        <select id="startSelect">
+            <option>Carregando...</option>
+        </select>
+
+        <label>Artista de Destino (End)</label>
+        <select id="endSelect">
+            <option>Carregando...</option>
+        </select>
+
+        <label style="margin-top: 10px; display:block;">Exploração (1 Fonte)</label>
+        <div class="btn-group">
+            <button class="btn-bfs" onclick="runAlgo('bfs')" title="Busca em Largura">BFS</button>
+            <button class="btn-dfs" onclick="runAlgo('dfs')" title="Busca em Profundidade">DFS</button>
+        </div>
+
+        <label style="margin-top: 15px; display:block;">Caminho Mínimo (Start &rarr; End)</label>
+        <div class="btn-group">
+            <button class="btn-dijk" onclick="runAlgo('dijkstra')"
+                title="Caminho mais curto (Pesos Positivos)">Dijkstra</button>
+            <button class="btn-bf" onclick="runAlgo('bellman_ford')"
+                title="Detecta ciclos negativos">Bellman-Ford</button>
+        </div>
+
+        <div id="loading" class="loader">PROCESSANDO NO PYTHON...</div>
+        <div id="output">Selecione os artistas e escolha um algoritmo para começar.</div>
+
+        <button class="btn-reset" onclick="resetGraph()">Limpar / Resetar Zoom</button>
     </div>
-    
-    <label>Artista de Origem (Start)</label>
-    <select id="startSelect"><option>Carregando...</option></select>
 
-    <label>Artista de Destino (End)</label>
-    <select id="endSelect"><option>Carregando...</option></select>
+    <div id="network"></div>
+    <div class="hint">Dica: Clique nas linhas para ouvir a música no Spotify.</div>
 
-    <label style="margin-top: 10px; display:block;">Exploração (1 Fonte)</label>
-    <div class="btn-group">
-        <button class="btn-bfs" onclick="runAlgo('bfs')" title="Busca em Largura">BFS</button>
-        <button class="btn-dfs" onclick="runAlgo('dfs')" title="Busca em Profundidade">DFS</button>
-    </div>
+    <script type="text/javascript">
+        var network = null;
+        var nodesDataset = new vis.DataSet();
+        var edgesDataset = new vis.DataSet();
 
-    <label style="margin-top: 15px; display:block;">Caminho Mínimo (Start &rarr; End)</label>
-    <div class="btn-group">
-        <button class="btn-dijk" onclick="runAlgo('dijkstra')" title="Caminho mais curto (Pesos Positivos)">Dijkstra</button>
-        <button class="btn-bf" onclick="runAlgo('bellman_ford')" title="Detecta ciclos negativos">Bellman-Ford</button>
-    </div>
+        async function initGraph() {
+            try {
+                const response = await fetch('/api/graph');
+                const data = await response.json();
 
-    <div id="loading" class="loader">PROCESSANDO NO PYTHON...</div>
-    <div id="output">Selecione os artistas e escolha um algoritmo para começar.</div>
+                nodesDataset.add(data.nodes);
+                edgesDataset.add(data.edges);
 
-    <button class="btn-reset" onclick="resetGraph()">Limpar / Resetar Zoom</button>
-</div>
+                populateSelects(data.nodes);
 
-<div id="network"></div>
-<div class="hint">Dica: Clique nas linhas para ouvir a música no Spotify.</div>
-
-<script type="text/javascript">
-    var network = null;
-    var nodesDataset = new vis.DataSet();
-    var edgesDataset = new vis.DataSet();
-
-    async function initGraph() {
-        try {
-            const response = await fetch('/api/graph');
-            const data = await response.json();
-
-            nodesDataset.add(data.nodes);
-            edgesDataset.add(data.edges);
-
-            populateSelects(data.nodes);
-
-            var container = document.getElementById('network');
-            var options = {
-                nodes: {
-                    shape: 'dot',
-                    size: 20,
-                    font: { size: 14, color: '#ffffff', strokeWidth: 2, strokeColor: '#000' },
-                    borderWidth: 2,
-                    shadow: true
-                },
-                edges: {
-                    width: 2,
-                    color: { color: '#444', highlight: '#1DB954', hover: '#1DB954' },
-                    smooth: { type: 'continuous', roundness: 0.5 },
-                    selectionWidth: 3
-                },
-                physics: {
-                    forceAtlas2Based: { 
-                        gravitationalConstant: -30, 
-                        centralGravity: 0.003, 
-                        springLength: 200, 
-                        springConstant: 0.08 
+                var container = document.getElementById('network');
+                var options = {
+                    nodes: {
+                        shape: 'dot',
+                        size: 20,
+                        font: { size: 14, color: '#ffffff', strokeWidth: 2, strokeColor: '#000' },
+                        borderWidth: 2,
+                        shadow: true
                     },
-                    maxVelocity: 50,
-                    solver: 'forceAtlas2Based',
-                    timestep: 0.35,
-                    stabilization: { iterations: 100 } 
-                },
-                interaction: { 
-                    hover: true, 
-                    tooltipDelay: 200,
-                    zoomView: true,
-                    dragView: true
-                }
-            };
-            
-            network = new vis.Network(container, {nodes: nodesDataset, edges: edgesDataset}, options);
-            setupNetworkEvents();
+                    edges: {
+                        width: 2,
+                        color: { color: '#444', highlight: '#1DB954', hover: '#1DB954' },
+                        smooth: { type: 'continuous', roundness: 0.5 },
+                        selectionWidth: 3
+                    },
+                    physics: {
+                        forceAtlas2Based: {
+                            gravitationalConstant: -30,
+                            centralGravity: 0.003,
+                            springLength: 200,
+                            springConstant: 0.08
+                        },
+                        maxVelocity: 50,
+                        solver: 'forceAtlas2Based',
+                        timestep: 0.35,
+                        stabilization: { iterations: 100 }
+                    },
+                    interaction: {
+                        hover: true,
+                        tooltipDelay: 200,
+                        zoomView: true,
+                        dragView: true
+                    }
+                };
 
-        } catch (error) {
-            document.getElementById('output').innerText = "Erro ao carregar grafo. O servidor Python está rodando?";
-            console.error(error);
-        }
-    }
+                network = new vis.Network(container, { nodes: nodesDataset, edges: edgesDataset }, options);
+                setupNetworkEvents();
 
-    function setupNetworkEvents() {
-        network.on("selectEdge", function (params) {
-            if (params.edges.length > 0 && params.nodes.length === 0) {
-                var edgeId = params.edges[0];
-                var edgeData = edgesDataset.get(edgeId);
-                
-                if (edgeData && edgeData.track_name) {
-                    var query = `${edgeData.track_name} ${edgeData.artist_1} ${edgeData.artist_2}`;
-                    
-                    var url = `https://open.spotify.com/search/${encodeURIComponent(query)}`;
-                    
-                    document.getElementById('output').innerHTML = `🎵 Abrindo Spotify para: <br><strong>${edgeData.track_name}</strong>`;
-                    
-                    window.open(url, '_blank');
-                    
-                    network.unselectAll();
-                }
+            } catch (error) {
+                document.getElementById('output').innerText = "Erro ao carregar grafo. O servidor Python está rodando?";
+                console.error(error);
             }
-        });
-
-        network.on("hoverEdge", function (params) {
-            document.getElementById('network').style.cursor = 'pointer';
-        });
-        network.on("blurEdge", function (params) {
-            document.getElementById('network').style.cursor = 'default';
-        });
-    }
-
-    function populateSelects(nodes) {
-        const startSelect = document.getElementById('startSelect');
-        const endSelect = document.getElementById('endSelect');
-        startSelect.innerHTML = ''; endSelect.innerHTML = '';
-
-        nodes.sort((a,b) => a.label.localeCompare(b.label));
-
-        nodes.forEach(node => {
-            const opt1 = new Option(node.label, node.id);
-            const opt2 = new Option(node.label, node.id);
-            startSelect.add(opt1);
-            endSelect.add(opt2);
-        });
-
-        if (endSelect.options.length > 1) endSelect.selectedIndex = 1;
-    }
-
-    async function runAlgo(type) {
-        const startNode = document.getElementById('startSelect').value;
-        const endNode = document.getElementById('endSelect').value;
-        const outputDiv = document.getElementById('output');
-        const loader = document.getElementById('loading');
-
-        if ((type === 'dijkstra' || type === 'bellman_ford') && startNode === endNode) {
-            outputDiv.innerHTML = "<span style='color:#e74c3c'>Erro:</span> A origem e o destino são iguais.";
-            return;
         }
 
-        resetGraph(false); 
-        loader.style.display = 'block';
-        outputDiv.innerText = "Calculando...";
+        function setupNetworkEvents() {
+            network.on("selectEdge", function (params) {
+                if (params.edges.length > 0 && params.nodes.length === 0) {
+                    var edgeId = params.edges[0];
+                    var edgeData = edgesDataset.get(edgeId);
 
-        try {
-            const url = `/api/run_algo?type=${type}&start=${encodeURIComponent(startNode)}&end=${encodeURIComponent(endNode)}`;
-            const response = await fetch(url);
-            const result = await response.json();
-            
-            loader.style.display = 'none';
-            
-            if (result.error) {
-                outputDiv.innerHTML = `<span style='color:#e74c3c'>Erro:</span> ${result.error}`;
+                    if (edgeData && edgeData.track_name) {
+                        var query = `${edgeData.track_name} ${edgeData.artist_1} ${edgeData.artist_2}`;
+
+                        var url = `https://open.spotify.com/search/${encodeURIComponent(query)}`;
+
+                        document.getElementById('output').innerHTML = `🎵 Abrindo Spotify para: <br><strong>${edgeData.track_name}</strong>`;
+
+                        window.open(url, '_blank');
+
+                        network.unselectAll();
+                    }
+                }
+            });
+
+            network.on("hoverEdge", function (params) {
+                document.getElementById('network').style.cursor = 'pointer';
+            });
+            network.on("blurEdge", function (params) {
+                document.getElementById('network').style.cursor = 'default';
+            });
+        }
+
+        function populateSelects(nodes) {
+            const startSelect = document.getElementById('startSelect');
+            const endSelect = document.getElementById('endSelect');
+            startSelect.innerHTML = ''; endSelect.innerHTML = '';
+
+            nodes.sort((a, b) => a.label.localeCompare(b.label));
+
+            nodes.forEach(node => {
+                const opt1 = new Option(node.label, node.id);
+                const opt2 = new Option(node.label, node.id);
+                startSelect.add(opt1);
+                endSelect.add(opt2);
+            });
+
+            if (endSelect.options.length > 1) endSelect.selectedIndex = 1;
+        }
+
+        async function runAlgo(type) {
+            const startNode = document.getElementById('startSelect').value;
+            const endNode = document.getElementById('endSelect').value;
+            const outputDiv = document.getElementById('output');
+            const loader = document.getElementById('loading');
+
+            if ((type === 'dijkstra' || type === 'bellman_ford') && startNode === endNode) {
+                outputDiv.innerHTML = "<span style='color:#e74c3c'>Erro:</span> A origem e o destino são iguais.";
                 return;
             }
 
-            outputDiv.innerHTML = result.info || "Algoritmo concluído.";
+            resetGraph(false);
+            loader.style.display = 'block';
+            outputDiv.innerText = "Calculando...";
 
-            if(result.path && result.path.length > 0) {
-                if (type === 'dijkstra' || type === 'bellman_ford') {
-                    highlightPath(result.path);
-                } else {
-                    animateExploration(result.path);
+            try {
+                const url = `/api/run_algo?type=${type}&start=${encodeURIComponent(startNode)}&end=${encodeURIComponent(endNode)}`;
+                const response = await fetch(url);
+                const result = await response.json();
+
+                loader.style.display = 'none';
+
+                if (result.error) {
+                    outputDiv.innerHTML = `<span style='color:#e74c3c'>Erro:</span> ${result.error}`;
+                    return;
                 }
+
+                outputDiv.innerHTML = result.info || "Algoritmo concluído.";
+
+                if (result.path && result.path.length > 0) {
+                    if (type === 'dijkstra' || type === 'bellman_ford') {
+                        highlightPath(result.path);
+                    } else {
+                        animateExploration(result.path);
+                    }
+                }
+
+            } catch (e) {
+                loader.style.display = 'none';
+                outputDiv.innerText = "Erro de conexão com o Python.";
+                console.error(e);
+            }
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') searchNode();
+        }
+        function searchNode() {
+            const input = document.getElementById('searchInput');
+            const name = input.value.trim();
+            const output = document.getElementById('output');
+
+            if (!name) {
+                output.innerHTML = "Por favor, digite algo para buscar.";
+                return;
             }
 
-        } catch (e) {
-            loader.style.display = 'none';
-            outputDiv.innerText = "Erro de conexão com o Python.";
-            console.error(e);
+            const lowerCaseName = name.toLowerCase();
+
+            const allNodes = nodesDataset.get();
+            const foundNode = allNodes.find(n => n.label.toLowerCase().includes(lowerCaseName));
+
+            if (foundNode) {
+                network.selectNodes([foundNode.id]);
+                network.focus(foundNode.id, {
+                    scale: 1.2,
+                    animation: {
+                        duration: 1000,
+                        easingFunction: 'easeInOutQuad'
+                    }
+                });
+
+                document.getElementById('startSelect').value = foundNode.id;
+                output.innerHTML = `🔍 Encontrado o resultado para "<strong>${name}</strong>": <br><strong>${foundNode.label}</strong>`;
+            } else {
+                output.innerHTML = `<span style='color:#e74c3c'>Artista contendo "${name}" não encontrado no grafo.</span>`;
+            }
         }
-    }
 
-    function highlightPath(path) {
-        const allNodes = nodesDataset.getIds();
-        const allEdges = edgesDataset.getIds();
-        
-        nodesDataset.update(allNodes.map(id => ({id: id, color: '#333', opacity: 0.1})));
-        edgesDataset.update(allEdges.map(id => ({id: id, color: '#333', opacity: 0.05})));
+        function highlightPath(path) {
+            const allNodes = nodesDataset.getIds();
+            const allEdges = edgesDataset.getIds();
 
-        const nodeUpdates = path.map((id, index) => {
-            let color = '#f1c40f'; 
-            let size = 25;
-            if (index === 0) { color = '#3498db'; size = 35; } 
-            if (index === path.length -1) { color = '#e74c3c'; size = 35; }
-            
-            return { id: id, color: { background: color, border: '#fff' }, opacity: 1, size: size };
-        });
-        nodesDataset.update(nodeUpdates);
+            nodesDataset.update(allNodes.map(id => ({ id: id, color: '#333', opacity: 0.1 })));
+            edgesDataset.update(allEdges.map(id => ({ id: id, color: '#333', opacity: 0.05 })));
 
-        const edgeUpdates = [];
-        for(let i=0; i < path.length - 1; i++) {
-            const u = path[i];
-            const v = path[i+1];
-            const edges = network.getConnectedEdges(u);
-            edges.forEach(edgeId => {
-                const edge = edgesDataset.get(edgeId);
-                if (edge.to === v || edge.from === v) {
-                    edgeUpdates.push({ id: edgeId, color: '#f1c40f', width: 4, opacity: 1 });
-                }
+            const nodeUpdates = path.map((id, index) => {
+                let color = '#f1c40f';
+                let size = 25;
+                if (index === 0) { color = '#3498db'; size = 35; }
+                if (index === path.length - 1) { color = '#e74c3c'; size = 35; }
+
+                return { id: id, color: { background: color, border: '#fff' }, opacity: 1, size: size };
             });
+            nodesDataset.update(nodeUpdates);
+
+            const edgeUpdates = [];
+            for (let i = 0; i < path.length - 1; i++) {
+                const u = path[i];
+                const v = path[i + 1];
+                const edges = network.getConnectedEdges(u);
+                edges.forEach(edgeId => {
+                    const edge = edgesDataset.get(edgeId);
+                    if (edge.to === v || edge.from === v) {
+                        edgeUpdates.push({ id: edgeId, color: '#f1c40f', width: 4, opacity: 1 });
+                    }
+                });
+            }
+            edgesDataset.update(edgeUpdates);
+
+            if (path.length > 0) network.fit({ nodes: path, animation: true });
         }
-        edgesDataset.update(edgeUpdates);
-        
-        if (path.length > 0) network.fit({ nodes: path, animation: true });
-    }
 
-    function animateExploration(path) {
-        let i = 0;
-        const allIds = nodesDataset.getIds();
-        nodesDataset.update(allIds.map(id => ({id: id, color: '#222', opacity: 0.2})));
+        function animateExploration(path) {
+            let i = 0;
+            const allIds = nodesDataset.getIds();
+            nodesDataset.update(allIds.map(id => ({ id: id, color: '#222', opacity: 0.2 })));
 
-        function step() {
-            if (i >= path.length) return;
-            
-            nodesDataset.update({
-                id: path[i], 
-                color: { background: '#1DB954', border: '#fff' }, 
-                opacity: 1,
-                size: 25
-            });
-            
-            i++;
-            const delay = path.length > 500 ? 5 : 50; 
-            setTimeout(step, delay);
+            function step() {
+                if (i >= path.length) return;
+
+                nodesDataset.update({
+                    id: path[i],
+                    color: { background: '#1DB954', border: '#fff' },
+                    opacity: 1,
+                    size: 25
+                });
+
+                i++;
+                const delay = path.length > 500 ? 5 : 50;
+                setTimeout(step, delay);
+            }
+            step();
         }
-        step();
-    }
 
-    function resetGraph(resetView = true) {
-        const allNodes = nodesDataset.getIds();
-        const allEdges = edgesDataset.getIds();
-        
-        nodesDataset.update(allNodes.map(id => ({
-            id: id, color: null, opacity: 1, size: 20 // Volta ao padrão do options
-        })));
-        
-        edgesDataset.update(allEdges.map(id => ({
-            id: id, color: null, width: 2, opacity: 1
-        })));
+        function resetGraph(resetView = true) {
+            const allNodes = nodesDataset.getIds();
+            const allEdges = edgesDataset.getIds();
 
-        document.getElementById('output').innerText = "Visualização limpa.";
-        if(resetView) network.fit({animation: true});
-    }
+            nodesDataset.update(allNodes.map(id => ({
+                id: id, color: null, opacity: 1, size: 20 // Volta ao padrão do options
+            })));
 
-    window.onload = initGraph;
-</script>
+            edgesDataset.update(allEdges.map(id => ({
+                id: id, color: null, width: 2, opacity: 1
+            })));
+
+            document.getElementById('output').innerText = "Visualização limpa.";
+            if (resetView) network.fit({ animation: true });
+        }
+
+        window.onload = initGraph;
+    </script>
 </body>
+
 </html>
