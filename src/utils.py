@@ -34,7 +34,8 @@ def load_spotify_graph(filepath):
             except ValueError:
                 streams = 0.0
             
-            weight = streams / 1_000_000_000
+            weight = 1_000_000_000/ streams + 1
+            
             
             for i in range(len(artists)):
                 for j in range(i + 1, len(artists)):

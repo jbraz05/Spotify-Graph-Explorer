@@ -80,7 +80,7 @@ def get_graph_data():
                 edges.append({
                     'from': u, 
                     'to': v, 
-                    'title': f"Música: {track_name} | Peso: {w:.2f} Bilhao", 
+                    'title': f"Música: {track_name} | Peso: {w:.2f}", 
                     'track_name': track_name,
                     'artist_1': u,
                     'artist_2': v

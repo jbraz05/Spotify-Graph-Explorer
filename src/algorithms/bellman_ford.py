@@ -6,7 +6,6 @@ def bellman_ford(graph, start_node):
     predecessors = {node: None for node in graph.nodes}
     distances[start_node] = 0
     
-    # 1. Relaxamento
     for _ in range(len(graph.nodes) - 1):
         updated = False
         for u in graph.nodes:
@@ -19,7 +18,6 @@ def bellman_ford(graph, start_node):
                     updated = True
         if not updated: break
     
-    # 2. Verificação de Ciclo Negativo
     negative_cycle = False
     for u in graph.nodes:
         if distances[u] == float('inf') or u not in graph.adj_list: continue
