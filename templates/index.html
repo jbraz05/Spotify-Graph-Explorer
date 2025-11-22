@@ -50,6 +50,14 @@
                 title="Detecta ciclos negativos">Bellman-Ford</button>
         </div>
 
+        <label style="margin-top: 20px; display:block;">Teste Bellman-Ford</label>
+        <div class="btn-group">
+            <button class="btn-toggle-neg" onclick="pesoNegativo()"
+                title="Inverte o peso">Peso Negativo</button>
+            <button class="btn-reset-weights" onclick="resetarPesos()"
+                title="Volta aos pesos originais">Resetar Pesos</button>
+        </div>
+
         <div id="loading" class="loader">PROCESSANDO NO PYTHON...</div>
         <div id="output">Selecione os artistas e escolha um algoritmo para começar.</div>
 
@@ -70,7 +78,7 @@
                 const data = await response.json();
 
                 nodesDataset.add(data.nodes);
-                edgesDataset.add(data.edges);
+                edgesDataset.add(processEdges(data.edges));
 
                 populateSelects(data.nodes);
 
@@ -312,6 +320,79 @@
 
             document.getElementById('output').innerText = "Visualização limpa.";
             if (resetView) network.fit({ animation: true });
+        }
+
+        async function recarregarGrafo() {
+            const response = await fetch('/api/graph');
+            const data = await response.json();
+            const processedEdges = processEdges(data.edges);
+
+            edgesDataset.update(processedEdges);
+            network.redraw(); 
+        }
+
+        async function pesoNegativo() {
+            const loader = document.getElementById('loading');
+            const outputDiv = document.getElementById('output');
+
+            loader.style.display = 'block';
+            outputDiv.innerText = "Negativando pesos...";
+            try {
+                const response = await fetch('/api/peso_negativo'); 
+                const result = await response.json();
+
+                resetGraph(false); 
+                await recarregarGrafo(); 
+                outputDiv.innerHTML = `<span style='color:#f39c12'>Pesos alterados!</span> ${result.message} <br>Tente rodar o **Bellman-Ford**.`;
+            } catch (e) {
+                outputDiv.innerText = "Erro ao negativar pesos.";
+                console.error(e);
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+        
+        async function resetarPesos() {
+            const loader = document.getElementById('loading');
+            const outputDiv = document.getElementById('output');
+
+            loader.style.display = 'block';
+            outputDiv.innerText = "Resetando pesos...";
+            try {
+                const response = await fetch('/api/resturar_peso'); 
+                const result = await response.json();
+                
+                resetGraph(false); 
+                await recarregarGrafo();
+                outputDiv.innerHTML = `<span style='color:#1DB954'>Pesos resetados!</span> ${result.message} <br>Agora o **Dijkstra** deve funcionar corretamente.`;
+            } catch (e) {
+                outputDiv.innerText = "Erro ao resetar pesos.";
+                console.error(e);
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        function processEdges(edges) {
+            return edges.map(edge => {
+                let edge_color = '#444';
+                let edge_width = 2;
+                
+                if (edge.is_negative) {
+                    edge_color = '#e74c3c';
+                    edge_width = 3;
+                }
+                
+                return {
+                    ...edge, 
+                    width: edge_width,
+                    color: {
+                        color: edge_color,
+                        highlight: '#1DB954',
+                        hover: edge_color, 
+                    },
+                };
+            });
         }
 
         window.onload = initGraph;

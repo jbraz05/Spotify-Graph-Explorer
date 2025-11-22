@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, render_template, request
 import os
+import random
 from src.utils import load_spotify_graph
 from src.algorithms import bfs, dfs, dijkstra, bellman_ford
 
@@ -35,6 +36,7 @@ removed_count = clean_graph(graph)
 print(f">>> Limpeza concluída! {removed_count} nós isolados removidos.")
 print(f">>> Nós atuais: {len(graph.nodes)}")
 
+adj_list_original = {u: g.copy() for u, g in graph.adj_list.items()}
 
 def reconstruct_path(predecessors, start, end):
     """Reconstroi o caminho do fim para o começo"""
@@ -75,15 +77,20 @@ def get_graph_data():
             edge_key = tuple(sorted((u, v)))
             
             if edge_key not in added_edges:
-                track_name = graph.edge_tracks.get(edge_key, "Desconhecida")
+                edge_id = f"{u}_{v}" if u < v else f"{v}_{u}"
                 
+                track_name = graph.edge_tracks.get(edge_key, "Desconhecida")
+                is_negative = w < 0
+
                 edges.append({
+                    'id': edge_id,
                     'from': u, 
                     'to': v, 
                     'title': f"Música: {track_name} | Peso: {w:.2f}", 
                     'track_name': track_name,
                     'artist_1': u,
-                    'artist_2': v
+                    'artist_2': v,
+                    'is_negative': is_negative
                 })
                 added_edges.add(edge_key)
 
@@ -115,27 +122,75 @@ def run_algorithm():
         if not end_node or end_node not in graph.nodes:
             return jsonify({'error': 'Selecione um destino válido'}), 400
         
-        dist_val = 0
+        dists = {}
+        preds = {}
+        has_cycle = False
+        dist_val = float('inf')
         
         if algo_type == 'dijkstra':
             dists, preds = dijkstra(graph, start_node, end_node)
-            dist_val = dists[end_node]
-            path = reconstruct_path(preds, start_node, end_node)
+            dist_val = dists.get(end_node, float('inf'))
             
         elif algo_type == 'bellman_ford':
-            dists, preds, has_cycle = bellman_ford(graph, start_node)
-            dist_val = dists[end_node]
-            if has_cycle:
-                info = "Ciclo negativo detectado! "
-            path = reconstruct_path(preds, start_node, end_node)
+            dists, preds, has_cycle = bellman_ford(graph, start_node) 
+            dist_val = dists.get(end_node, float('inf'))
 
-        if not path:
-            info += f"{algo_type.title()}: Sem caminho entre {start_node} e {end_node}."
+        if has_cycle:
+            info = "Ciclo de peso negativo detectado! O caminho mínimo não é bem definido."
+            path = []
+            
+        elif dist_val == float('inf'):
+            info = f"{algo_type.title()}: Sem caminho entre {start_node} e {end_node}."
+            path = []
+            
         else:
-            dist_fmt = f"{dist_val:.2f}" if dist_val != float('inf') else "Inf"
-            info += f"{algo_type.title()}: Distância {dist_fmt} | {len(path)} passos."
-
+            path = reconstruct_path(preds, start_node, end_node)
+            dist_fmt = f"{dist_val:.2f}"
+            info = f"{algo_type.title()}: Distância {dist_fmt} | {len(path)} passos."
+            
     return jsonify({'path': path, 'info': info})
+
+@app.route('/api/peso_negativo')
+def peso_negativo():
+    global graph 
+    
+    todas_arestas_unicas = []      
+    arestas_conferidas = set() 
+
+    for u in graph.nodes:
+        for v in graph.adj_list.get(u, {}):
+            edge_key = tuple(sorted((u, v)))
+            if edge_key not in arestas_conferidas:
+                todas_arestas_unicas.append(edge_key) 
+                arestas_conferidas.add(edge_key)
+
+    arestas_negativas = random.sample(todas_arestas_unicas, 3)
+    arestas_alteradas = 0
+    
+    for u, v in arestas_negativas:
+        if u in adj_list_original and v in adj_list_original[u]:
+            peso_original = adj_list_original[u][v]
+            novo_peso = -peso_original
+            graph.adj_list[u][v] = novo_peso
+            arestas_alteradas += 1
+
+        if v in graph.adj_list and u in graph.adj_list[v]:
+             del graph.adj_list[v][u]
+        
+    return jsonify({'message': f'{arestas_alteradas} arestas negativadas e unidirecionais.'})
+
+@app.route('/api/resturar_peso')
+def restaurar_peso():
+    global graph
+    
+    graph.adj_list = {u: g.copy() for u, g in adj_list_original.items()}
+    graph.nodes = set(graph.adj_list.keys())
+    
+    for u in graph.adj_list:
+        for v in graph.adj_list[u]:
+            graph.nodes.add(v)
+            
+    return jsonify({'message': 'Pesos do grafo resetados para os valores originais (+w).'})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

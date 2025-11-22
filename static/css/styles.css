@@ -188,3 +188,20 @@ button:active {
     justify-content: center;
 
 }
+.btn-toggle-neg {
+    background-color: #f39c12;
+    color: white;
+}
+
+.btn-toggle-neg:hover {
+    background-color: #e67e22;
+}
+
+.btn-reset-weights {
+    background-color: #2ecc71; /* Verde, indicando estado seguro */
+    color: white;
+}
+
+.btn-reset-weights:hover {
+    background-color: #27ae60;
+}
