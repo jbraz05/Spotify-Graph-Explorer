@@ -4,8 +4,9 @@ class Graph:
         self.nodes = set()
         self.directed = directed
         self.edge_tracks = {}
+        self.edge_streams = {}
 
-    def add_edge(self, u, v, weight=1.0, track_name=None):
+    def add_edge(self, u, v, weight=1.0, track_name=None, streams=0.0):
         self.nodes.add(u)
         self.nodes.add(v)
         
@@ -22,6 +23,7 @@ class Graph:
         if track_name:
             key = tuple(sorted((u, v)))
             self.edge_tracks[key] = track_name
+            self.edge_streams[key] = streams
 
     def get_stats(self):
         num_v = len(self.nodes)

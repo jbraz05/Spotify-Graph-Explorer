@@ -14,11 +14,11 @@
 
     <div id="sidebar">
         <div>
-            <h2>Grafo Musicas do Spotify 🎵</h2>
+            <h2>Spotify Graph Explorer 🎵</h2>
             <p class="subtitle">Explorador de Colaborações</p>
         </div>
 
-        <label>🔍 Buscar Artista no Grafo</label>
+        <label>🔍 Buscar Artista ou Música no Grafo</label>
         <div class="search-container">
             <input type="text" id="searchInput" list="artistSuggestions" placeholder="Digite o nome..."
                 onkeypress="handleEnter(event)">
@@ -65,12 +65,13 @@
     </div>
 
     <div id="network"></div>
-    <div class="hint">Dica: Clique nas linhas para ouvir a música no Spotify.</div>
+    <div class="hint">Dica: Clique nas linhas para ouvir a música no Spotify. Duplo clique nos vértices para abrir o artista no Spotify.</div>
 
     <script type="text/javascript">
         var network = null;
         var nodesDataset = new vis.DataSet();
         var edgesDataset = new vis.DataSet();
+        var originalProcessedEdges = null; // Armazena as arestas processadas originais
 
         async function initGraph() {
             try {
@@ -78,7 +79,9 @@
                 const data = await response.json();
 
                 nodesDataset.add(data.nodes);
-                edgesDataset.add(processEdges(data.edges));
+                const processedEdges = processEdges(data.edges);
+                originalProcessedEdges = processedEdges; // Salva as arestas originais
+                edgesDataset.add(processedEdges);
 
                 populateSelects(data.nodes);
 
@@ -151,6 +154,25 @@
             });
             network.on("blurEdge", function (params) {
                 document.getElementById('network').style.cursor = 'default';
+            });
+
+            // Duplo clique no vértice para abrir Spotify do artista
+            network.on("doubleClick", function (params) {
+                if (params.nodes.length > 0) {
+                    var nodeId = params.nodes[0];
+                    var nodeData = nodesDataset.get(nodeId);
+                    
+                    if (nodeData && nodeData.label) {
+                        var artistName = nodeData.label;
+                        var url = `https://open.spotify.com/search/${encodeURIComponent(artistName)}`;
+                        
+                        document.getElementById('output').innerHTML = `🎤 Abrindo Spotify para o artista: <br><strong>${artistName}</strong>`;
+                        
+                        window.open(url, '_blank');
+                        
+                        network.unselectAll();
+                    }
+                }
             });
         }
 
@@ -228,12 +250,19 @@
                 return;
             }
 
+            // Restaura todas as arestas às cores originais antes de fazer nova busca
+            if (originalProcessedEdges) {
+                edgesDataset.update(originalProcessedEdges);
+            }
+
             const lowerCaseName = name.toLowerCase();
 
+            // Primeiro, busca nos nós (artistas)
             const allNodes = nodesDataset.get();
             const foundNode = allNodes.find(n => n.label.toLowerCase().includes(lowerCaseName));
 
             if (foundNode) {
+                network.unselectAll();
                 network.selectNodes([foundNode.id]);
                 network.focus(foundNode.id, {
                     scale: 1.2,
@@ -244,9 +273,90 @@
                 });
 
                 document.getElementById('startSelect').value = foundNode.id;
-                output.innerHTML = `🔍 Encontrado o resultado para "<strong>${name}</strong>": <br><strong>${foundNode.label}</strong>`;
+                output.innerHTML = `🎤 Artista encontrado para "<strong>${name}</strong>": <br><strong>${foundNode.label}</strong>`;
+                return;
+            }
+
+            // Se não encontrou artista, busca nas arestas (músicas)
+            const allEdges = edgesDataset.get();
+            const foundEdges = allEdges.filter(e => 
+                e.track_name && e.track_name.toLowerCase().includes(lowerCaseName)
+            );
+
+            if (foundEdges.length > 0) {
+                network.unselectAll();
+                
+                // Destaca as arestas encontradas
+                const edgeIds = foundEdges.map(e => e.id);
+                network.selectEdges(edgeIds);
+                
+                // Obtém os nós conectados para fazer zoom
+                const connectedNodes = new Set();
+                foundEdges.forEach(edge => {
+                    connectedNodes.add(edge.from);
+                    connectedNodes.add(edge.to);
+                });
+                const nodeIds = Array.from(connectedNodes);
+                
+                // Destaque visual das arestas (mantém a estrutura de cores original)
+                const edgeUpdates = foundEdges.map(edge => {
+                    const originalEdge = originalProcessedEdges ? 
+                        originalProcessedEdges.find(e => e.id === edge.id) : null;
+                    const baseColor = originalEdge && originalEdge.color ? 
+                        originalEdge.color.color : '#1DB954';
+                    
+                    return {
+                        id: edge.id,
+                        color: {
+                            color: '#1DB954',
+                            highlight: '#1DB954',
+                            hover: '#1DB954'
+                        },
+                        width: 5
+                    };
+                });
+                edgesDataset.update(edgeUpdates);
+                
+                // Remove duplicatas dos nomes de músicas
+                const uniqueTrackNames = [...new Set(foundEdges.map(e => e.track_name))];
+                const trackNames = uniqueTrackNames.join(', ');
+                const count = uniqueTrackNames.length;
+                const edgesCount = foundEdges.length;
+                
+                // Faz zoom nos nós conectados
+                // Se houver apenas uma música, faz zoom mais próximo e focado (similar à busca de artista)
+                if (nodeIds.length > 0) {
+                    if (count === 1) {
+                        // Para uma única música, usa fit para garantir que todas as arestas sejam visíveis
+                        network.fit({
+                            nodes: nodeIds,
+                            edges: edgeIds,
+                            animation: {
+                                duration: 1000,
+                                easingFunction: 'easeInOutQuad'
+                            }
+                        });
+                    } else {
+                        // Para múltiplas músicas, usa focus com scale maior
+                        network.focus(nodeIds, {
+                            scale: 1.5,
+                            animation: {
+                                duration: 1000,
+                                easingFunction: 'easeInOutQuad'
+                            }
+                        });
+                    }
+                }
+                
+                // Mensagem informa quantas músicas únicas foram encontradas e quantas arestas
+                let message = `🎵 ${count} música${count > 1 ? 's' : ''} encontrada${count > 1 ? 's' : ''} para "<strong>${name}</strong>":`;
+                if (edgesCount > count) {
+                    message += ` <span style='color:#95a5a6; font-size:0.9em'>(${edgesCount} colaboração${edgesCount > 1 ? 'ões' : 'ão'})</span>`;
+                }
+                message += `<br><strong>${trackNames}</strong>`;
+                output.innerHTML = message;
             } else {
-                output.innerHTML = `<span style='color:#e74c3c'>Artista contendo "${name}" não encontrado no grafo.</span>`;
+                output.innerHTML = `<span style='color:#e74c3c'>Nenhum artista ou música contendo "${name}" foi encontrado no grafo.</span>`;
             }
         }
 
@@ -314,10 +424,16 @@
                 id: id, color: null, opacity: 1, size: 20
             })));
 
-            edgesDataset.update(allEdges.map(id => ({
-                id: id, color: null, width: 2, opacity: 1
-            })));
+            // Restaura as arestas originais processadas
+            if (originalProcessedEdges) {
+                edgesDataset.update(originalProcessedEdges);
+            } else {
+                edgesDataset.update(allEdges.map(id => ({
+                    id: id, color: null, width: 2, opacity: 1
+                })));
+            }
 
+            network.unselectAll();
             document.getElementById('output').innerText = "Visualização limpa.";
             if (resetView) network.fit({ animation: true });
         }
@@ -326,6 +442,7 @@
             const response = await fetch('/api/graph');
             const data = await response.json();
             const processedEdges = processEdges(data.edges);
+            originalProcessedEdges = processedEdges; // Atualiza as arestas originais
 
             edgesDataset.update(processedEdges);
             network.redraw(); 

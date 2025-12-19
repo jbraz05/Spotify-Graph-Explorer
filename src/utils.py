@@ -39,6 +39,6 @@ def load_spotify_graph(filepath):
             
             for i in range(len(artists)):
                 for j in range(i + 1, len(artists)):
-                    g.add_edge(artists[i], artists[j], weight, track_name=track_name)
+                    g.add_edge(artists[i], artists[j], weight, track_name=track_name, streams=streams)
 
     return g

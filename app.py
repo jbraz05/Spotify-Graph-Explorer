@@ -80,17 +80,23 @@ def get_graph_data():
                 edge_id = f"{u}_{v}" if u < v else f"{v}_{u}"
                 
                 track_name = graph.edge_tracks.get(edge_key, "Desconhecida")
+                streams = graph.edge_streams.get(edge_key, 0.0)
                 is_negative = w < 0
+                
+                # Formata streams com separador de milhares (padrão brasileiro: 1.000.000)
+                streams_int = int(streams)
+                streams_formatted = f"{streams_int:,}".replace(",", ".")
 
                 edges.append({
                     'id': edge_id,
                     'from': u, 
                     'to': v, 
-                    'title': f"Música: {track_name} | Peso: {w:.2f}", 
+                    'title': f"Música: {track_name} | Peso: {w:.2f} | Streams: {streams_formatted}", 
                     'track_name': track_name,
                     'artist_1': u,
                     'artist_2': v,
-                    'is_negative': is_negative
+                    'is_negative': is_negative,
+                    'streams': streams
                 })
                 added_edges.add(edge_key)
 
